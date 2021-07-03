@@ -78,7 +78,7 @@ async function run() {
 
         const packageName = manifest.name;
         const version = manifest.version;
-        const ipfsHash = releases[version].hash;
+        const ipfsHash = releases[version].hash.replace('/ipfs/', '');
 
         await axios.post(
             'https://adminrpc.ava.do',
