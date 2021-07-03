@@ -83,8 +83,13 @@ async function run() {
         await axios.post(
             'https://adminrpc.ava.do',
             {
-                name: packageName,
-                ipfsHash,
+                jsonrpc: '2.0',
+                id: 1,
+                method: 'store.setPackageHash',
+                params: {
+                    name: packageName,
+                    ipfsHash: ipfsHash,
+                },
             },
             {
                 headers: {
