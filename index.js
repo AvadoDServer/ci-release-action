@@ -90,6 +90,20 @@ async function run() {
                 }
             }
         );
+
+        await axios.post(
+            'https://adminrpc.ava.do',
+            {
+                jsonrpc: '2.0',
+                id: 1,
+                method: 'store.releaseStore',
+            },
+            {
+                headers: {
+                    Authorization: `${rpcAuthToken}`,
+                }
+            }
+        );
     } catch (error) {
         core.setFailed(error.message);
     }
