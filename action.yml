@@ -1,0 +1,11 @@
+name: 'Release AVADO Package'
+inputs:
+  token:
+    description: 'Github token'
+    default: ${{ github.token }}
+  rpcToken:
+    description: 'RPC Auth token'
+    required: true
+runs:
+  using: 'node12'
+  main: 'dist/index.js'
