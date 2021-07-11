@@ -92,7 +92,7 @@ async function run() {
         );
 
         await axios.post(
-            'https://adminrpc.ava.do',
+            'https://bo.ava.do/rpc',
             {
                 jsonrpc: '2.0',
                 id: 1,
@@ -100,7 +100,7 @@ async function run() {
             },
             {
                 headers: {
-                    Authorization: `${rpcAuthToken}`,
+                    admintoken: `${rpcAuthToken}`,
                 }
             }
         );
