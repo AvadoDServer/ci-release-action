@@ -26,7 +26,10 @@ async function run() {
 
         let artifactToDownload;
 
-        for (let commit of payload.commits) {
+        // Commits are ascending, but we need to check from latest -> oldest
+        const reversedCommits = payload.commits.reverse();
+
+        for (let commit of reversedCommits) {
             const commitDiffArtifactName = `${commit.id}.diff`;
 
             const matchedArtifacts = artifacts.filter(artifact => artifact.name == commitDiffArtifactName);
