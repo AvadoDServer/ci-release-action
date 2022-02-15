@@ -73,15 +73,16 @@ async function run() {
         await exec.exec('git config user.name "github-actions[bot]"');
         await exec.exec('git config user.email "github-actions[bot]@users.noreply.github.com"');
         await exec.exec('git add .');
-        await exec.exec('git commit -m "apply build diff"');
-        await exec.exec(`git push https://${process.env.GITHUB_ACTOR}:${githubToken}@github.com/${payload.repository.full_name}.git`);
-
+        
         const manifest = JSON.parse(fs.readFileSync('./dappnode_package.json'));
         const releases = JSON.parse(fs.readFileSync('./releases.json'));
-
+        
         const packageName = manifest.name;
         const version = manifest.version;
         const ipfsHash = releases[version].hash.replace('/ipfs/', '');
+
+        await exec.exec(`git commit --allow-empty -m "Release ${packageName} ${version}" -m "Manifest hash: ${ipfsHash}"`);
+        await exec.exec(`git push https://${process.env.GITHUB_ACTOR}:${githubToken}@github.com/${payload.repository.full_name}.git`);
 
         await axios.post(
             'https://adminrpc.ava.do',
