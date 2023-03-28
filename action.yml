@@ -1,4 +1,5 @@
 name: 'Release AVADO Package'
+description: 'Releases the AVADO package with GitHub actions when the PR is merged on master/main'
 inputs:
   token:
     description: 'Github token'
