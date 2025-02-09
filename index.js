@@ -30,7 +30,7 @@ async function run() {
         const reversedCommits = payload.commits.reverse();
 
         for (let commit of reversedCommits) {
-            const commitDiffArtifactName = `${commit.id}-diff`;
+            const commitDiffArtifactName = `asset-${commit.id}-diff`;
 
             const matchedArtifacts = artifacts.filter(artifact => artifact.name == commitDiffArtifactName);
 
