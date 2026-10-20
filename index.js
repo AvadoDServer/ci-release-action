@@ -95,8 +95,10 @@ async function run() {
             }
         );
 
+        // Straight to adminrpc: bo.ava.do/rpc only proxied this call to it,
+        // and bo.ava.do's backend (bo2) went down on 2026-10-20.
         await axios.post(
-            'https://bo.ava.do/rpc',
+            'https://adminrpc.ava.do',
             {
                 jsonrpc: '2.0',
                 id: 1,
@@ -104,7 +106,7 @@ async function run() {
             },
             {
                 headers: {
-                    admintoken: `${rpcAuthToken}`,
+                    Authorization: `${rpcAuthToken}`,
                 }
             }
         );
