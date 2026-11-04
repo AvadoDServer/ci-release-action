@@ -4,6 +4,7 @@ const { context } = require('@actions/github');
 const axios = require('axios').default;
 const github = require('@actions/github');
 const fs = require('fs');
+const { gitReadOptions } = require('./gitAuth');
 
 async function run() {
     try {
@@ -40,12 +41,38 @@ async function run() {
             }
         }
 
+        // The build action now also uploads an SBOM artifact per build, so the
+        // newest 50 artifacts cover fewer builds than before. If the diff is
+        // not among them, look it up by its exact name.
+        if (!artifactToDownload) {
+            for (let commit of reversedCommits) {
+                const commitDiffArtifactName = `asset-${commit.id}-diff`;
+
+                const namedResponse = await octokit.rest.actions.listArtifactsForRepo({
+                    owner,
+                    repo,
+                    name: commitDiffArtifactName,
+                    per_page: 1,
+                });
+
+                const namedArtifacts = namedResponse.data.artifacts.filter(artifact => artifact.name == commitDiffArtifactName);
+
+                if (namedArtifacts.length) {
+                    artifactToDownload = namedArtifacts[0];
+                    break;
+                }
+            }
+        }
+
         if (!artifactToDownload) {
             core.info('There is no build artifact belongs to commits of this push so no need to release.');
             return;
         }
 
-        await exec.exec(`git clone https://github.com/${payload.repository.full_name}.git .`);
+        // Public repositories are cloned anonymously, exactly as before.
+        // Private ones need the token; see gitAuth.js. (The push below
+        // already uses the token.)
+        await exec.exec(`git clone https://github.com/${payload.repository.full_name}.git .`, undefined, gitReadOptions(payload.repository, githubToken));
 
         const artifactDownloadResponse = await octokit.rest.actions.downloadArtifact({
             owner,

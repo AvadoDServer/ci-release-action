@@ -1,6 +1,52 @@
 require('./sourcemap-register.js');/******/ (() => { // webpackBootstrap
 /******/ 	var __webpack_modules__ = ({
 
+/***/ 6036:
+/***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
+
+const core = __nccwpck_require__(2186);
+
+// Exec options for the git commands that read the package repository.
+//
+// Public repository: returns undefined, so the commands run exactly as they
+// always did (anonymous https clone, no token anywhere).
+//
+// Private repository: returns options whose environment makes git send the
+// workflow token to github.com as an "AUTHORIZATION: basic" header (the same
+// header actions/checkout uses). The token goes through GIT_CONFIG_* variables,
+// so it is never on a command line, never written to .git/config and never in
+// the git diff the build uploads. Both the token and its base64 form are
+// registered as secrets, so the runner masks them if they ever reach the log.
+function gitReadOptions(repository, token) {
+    if (!repository || !repository.private) {
+        return undefined;
+    }
+
+    if (!token) {
+        throw new Error(
+            'This package repository is private, so the action needs a GitHub token to read it. ' +
+            'Leave the "token" input out to use the workflow token, or pass one that can read this repository.'
+        );
+    }
+
+    const basic = Buffer.from(`x-access-token:${token}`, 'utf8').toString('base64');
+    core.setSecret(token);
+    core.setSecret(basic);
+
+    const env = { ...process.env };
+    const index = parseInt(env.GIT_CONFIG_COUNT || '0', 10) || 0;
+    env[`GIT_CONFIG_KEY_${index}`] = 'http.https://github.com/.extraheader';
+    env[`GIT_CONFIG_VALUE_${index}`] = `AUTHORIZATION: basic ${basic}`;
+    env.GIT_CONFIG_COUNT = String(index + 1);
+
+    return { env };
+}
+
+module.exports = { gitReadOptions };
+
+
+/***/ }),
+
 /***/ 7351:
 /***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
 
@@ -18721,6 +18767,7 @@ const { context } = __nccwpck_require__(5438);
 const axios = (__nccwpck_require__(8757)["default"]);
 const github = __nccwpck_require__(5438);
 const fs = __nccwpck_require__(7147);
+const { gitReadOptions } = __nccwpck_require__(6036);
 
 async function run() {
     try {
@@ -18757,12 +18804,38 @@ async function run() {
             }
         }
 
+        // The build action now also uploads an SBOM artifact per build, so the
+        // newest 50 artifacts cover fewer builds than before. If the diff is
+        // not among them, look it up by its exact name.
+        if (!artifactToDownload) {
+            for (let commit of reversedCommits) {
+                const commitDiffArtifactName = `asset-${commit.id}-diff`;
+
+                const namedResponse = await octokit.rest.actions.listArtifactsForRepo({
+                    owner,
+                    repo,
+                    name: commitDiffArtifactName,
+                    per_page: 1,
+                });
+
+                const namedArtifacts = namedResponse.data.artifacts.filter(artifact => artifact.name == commitDiffArtifactName);
+
+                if (namedArtifacts.length) {
+                    artifactToDownload = namedArtifacts[0];
+                    break;
+                }
+            }
+        }
+
         if (!artifactToDownload) {
             core.info('There is no build artifact belongs to commits of this push so no need to release.');
             return;
         }
 
-        await exec.exec(`git clone https://github.com/${payload.repository.full_name}.git .`);
+        // Public repositories are cloned anonymously, exactly as before.
+        // Private ones need the token; see gitAuth.js. (The push below
+        // already uses the token.)
+        await exec.exec(`git clone https://github.com/${payload.repository.full_name}.git .`, undefined, gitReadOptions(payload.repository, githubToken));
 
         const artifactDownloadResponse = await octokit.rest.actions.downloadArtifact({
             owner,
