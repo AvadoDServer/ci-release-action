@@ -55,7 +55,9 @@ async function run() {
                     per_page: 1,
                 });
 
-                const namedArtifacts = namedResponse.data.artifacts.filter(artifact => artifact.name == commitDiffArtifactName);
+                // An expired artifact cannot be downloaded any more, so treat
+                // it as missing (no release), the same as before this lookup.
+                const namedArtifacts = namedResponse.data.artifacts.filter(artifact => artifact.name == commitDiffArtifactName && !artifact.expired);
 
                 if (namedArtifacts.length) {
                     artifactToDownload = namedArtifacts[0];
