@@ -33,6 +33,7 @@ Anything else is left open, with one comment saying why where a person has to ac
 
 - One pull request: add the label `hold`.
 - One repo: repository variable `AUTOMERGE` = `off` (Settings, Secrets and variables, Actions, Variables).
+- Try it: `AUTOMERGE` = `dry-run` logs what would be merged, changes nothing.
 - Everything: organization variable `AUTOMERGE` = `off` (a repository variable overrides it).
 - Wait time: input `min-age-hours` (default 20; the bots run daily, so 20 h means "next day").
 

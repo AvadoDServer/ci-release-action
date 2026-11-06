@@ -14,7 +14,7 @@ inputs:
     description: 'An update that is not urgent waits this long after its last commit, so a quickly pulled or fixed upstream release never ships and you have time to add the hold label'
     default: '20'
   enabled:
-    description: 'Pass vars.AUTOMERGE; "off" stops automatic merges in this repo'
+    description: 'Pass vars.AUTOMERGE: "off" stops automatic merges, "dry-run" only logs what it would merge'
     default: ''
   token:
     description: 'Workflow token (needs contents: write, pull-requests: write, actions: read)'

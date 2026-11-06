@@ -23,6 +23,7 @@ fi
 # Comment once per head commit and reason, so a waiting PR does not get a
 # new comment on every scheduled run.
 note() { # pr sha reason text
+  [ "${ENABLED:-}" = "dry-run" ] && return 0
   local marker="<!-- automerge:$2:$3 -->"
   if ! gh api "repos/$R/issues/$1/comments?per_page=100" -q '.[].body' | grep -qF "$marker"; then
     gh pr comment "$1" -R "$R" --body "$4
@@ -112,7 +113,7 @@ for n in $candidates; do
   if is_major "$base_up" "$head_up"; then
     log "#$n: $base_up -> $head_up is a major upgrade, merge it by hand."
     note "$n" "$sha" major "Not merged automatically: **$base_up → $head_up** is a major upgrade. Read the upstream release notes, then merge by hand."
-    gh pr edit "$n" -R "$R" --add-label needs-review >/dev/null 2>&1 || true
+    [ "${ENABLED:-}" = "dry-run" ] || gh pr edit "$n" -R "$R" --add-label needs-review >/dev/null 2>&1 || true
     continue
   fi
 
@@ -142,6 +143,10 @@ for n in $candidates; do
     continue
   fi
 
+  if [ "${ENABLED:-}" = "dry-run" ]; then
+    log "#$n: WOULD merge and release now (dry run: AUTOMERGE=dry-run)."
+    out "" ""; exit 0
+  fi
   gh pr merge "$n" -R "$R" --merge --match-head-commit "$sha" \
     --subject "Merge #$n: $title" --body "Merged automatically by the update pipeline."
   log "#$n: merged ($title; urgent: $urgent)."
