@@ -1,0 +1,48 @@
+name: 'Merge and release an AVADO upstream update'
+description: >
+  Merges an upstream-update pull request opened by a package repo's update bot
+  once its Build passed, then releases it like the Release workflow does.
+  Rules: see README.md in this directory.
+inputs:
+  rpcToken:
+    description: 'RPC auth token (secrets.RPC_TOKEN), passed on to the release'
+    required: true
+  pr:
+    description: 'Check only this pull request (the Build workflow passes its own). Empty: every open pull request (scheduled run).'
+    default: ''
+  min-age-hours:
+    description: 'An update that is not urgent waits this long after its last commit, so a quickly pulled or fixed upstream release never ships and you have time to add the hold label'
+    default: '20'
+  enabled:
+    description: 'Pass vars.AUTOMERGE: "off" stops automatic merges, "dry-run" only logs what it would merge'
+    default: ''
+  token:
+    description: 'Workflow token (needs contents: write, pull-requests: write, actions: read)'
+    default: ${{ github.token }}
+outputs:
+  merged:
+    description: 'Number of the pull request that was merged and released, or empty'
+    value: ${{ steps.pick.outputs.pr }}
+runs:
+  using: composite
+  steps:
+    - id: pick
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.token }}
+        PR: ${{ inputs.pr }}
+        MIN_AGE_HOURS: ${{ inputs.min-age-hours }}
+        ENABLED: ${{ inputs.enabled }}
+      run: bash "$GITHUB_ACTION_PATH/automerge.sh"
+    - if: steps.pick.outputs.sha != ''
+      uses: AvadoDServer/ci-release-action@main
+      with:
+        rpcToken: ${{ inputs.rpcToken }}
+        token: ${{ inputs.token }}
+        sha: ${{ steps.pick.outputs.sha }}
+    - if: steps.pick.outputs.sha != ''
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.token }}
+      run: |
+        gh pr comment "${{ steps.pick.outputs.pr }}" -R "$GITHUB_REPOSITORY" --body "Merged and released automatically by the update pipeline ([run]($GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID)). Boxes with automatic updates get it on their next check."

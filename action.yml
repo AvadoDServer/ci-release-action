@@ -6,6 +6,9 @@ inputs:
   rpcToken:
     description: 'RPC Auth token'
     required: true
+  sha:
+    description: 'Release the build of this pull request head commit instead of the pushed commits (used by the automerge action). Optional.'
+    default: ''
 runs:
   using: 'node24'
   main: 'dist/index.js'

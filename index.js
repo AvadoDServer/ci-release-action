@@ -27,8 +27,13 @@ async function run() {
 
         let artifactToDownload;
 
-        // Commits are ascending, but we need to check from latest -> oldest
-        const reversedCommits = payload.commits.reverse();
+        // Commits are ascending, but we need to check from latest -> oldest.
+        // With the `sha` input (an automatic merge by the automerge action,
+        // which pushes with the workflow token, so no push event runs this
+        // workflow) the release looks for that pull request head's build.
+        const shaInput = core.getInput('sha');
+        const commits = shaInput ? [{ id: shaInput }] : (payload.commits || []);
+        const reversedCommits = [...commits].reverse();
 
         for (let commit of reversedCommits) {
             const commitDiffArtifactName = `asset-${commit.id}-diff`;
