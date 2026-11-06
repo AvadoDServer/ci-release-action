@@ -68,7 +68,7 @@ EOF
 build_passed() { # sha
   local run
   run=$(gh api "repos/$R/actions/workflows/build.yml/runs?head_sha=$1&per_page=20" \
-    -q '.workflow_runs | sort_by(.created_at) | last | .id // empty')
+    -q '[.workflow_runs[] | select(.conclusion != "action_required" and .conclusion != "skipped" and .conclusion != "cancelled")] | sort_by(.created_at) | last | .id // empty')
   [ -n "$run" ] || return 1
   [ "$(gh api "repos/$R/actions/runs/$run/jobs" -q '[.jobs[] | select(.name == "build")][0].conclusion')" = "success" ]
 }
