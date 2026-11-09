@@ -1,6 +1,42 @@
 require('./sourcemap-register.js');/******/ (() => { // webpackBootstrap
 /******/ 	var __webpack_modules__ = ({
 
+/***/ 8907:
+/***/ ((module) => {
+
+// Which build artifact may be released for a commit.
+//
+// The build action uploads the release diff as "asset-<head sha>-diff". The
+// name alone proves nothing: a pull request from a fork runs its own copy of
+// the workflow and can upload an artifact under any name, also the name of
+// someone else's commit. GitHub records which commit the workflow run that
+// made an artifact ran on, and a fork cannot set that, so an artifact counts
+// only when its run's head commit is the commit in its name.
+function artifactName(sha) {
+    return `asset-${sha}-diff`;
+}
+
+function isBuildOf(artifact, sha) {
+    return Boolean(
+        artifact
+        && sha
+        && artifact.name === artifactName(sha)
+        && !artifact.expired
+        && artifact.workflow_run
+        && artifact.workflow_run.head_sha === sha
+    );
+}
+
+// Newest first, like the API lists them.
+function pickBuild(artifacts, sha) {
+    return (artifacts || []).find(artifact => isBuildOf(artifact, sha));
+}
+
+module.exports = { artifactName, isBuildOf, pickBuild };
+
+
+/***/ }),
+
 /***/ 6036:
 /***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
 
@@ -18768,6 +18804,7 @@ const axios = (__nccwpck_require__(8757)["default"]);
 const github = __nccwpck_require__(5438);
 const fs = __nccwpck_require__(7147);
 const { gitReadOptions } = __nccwpck_require__(6036);
+const { artifactName, pickBuild } = __nccwpck_require__(8907);
 
 async function run() {
     try {
@@ -18798,43 +18835,42 @@ async function run() {
         const commits = shaInput ? [{ id: shaInput }] : (payload.commits || []);
         const reversedCommits = [...commits].reverse();
 
+        // An artifact counts only when the workflow run that made it ran on
+        // that commit (see buildArtifact.js): the name alone can be forged.
         for (let commit of reversedCommits) {
-            const commitDiffArtifactName = `asset-${commit.id}-diff`;
-
-            const matchedArtifacts = artifacts.filter(artifact => artifact.name == commitDiffArtifactName);
-
-            if (matchedArtifacts.length) {
-                artifactToDownload = matchedArtifacts[0];
+            artifactToDownload = pickBuild(artifacts, commit.id);
+            if (artifactToDownload) {
                 break;
             }
         }
 
         // The build action now also uploads an SBOM artifact per build, so the
         // newest 50 artifacts cover fewer builds than before. If the diff is
-        // not among them, look it up by its exact name.
+        // not among them, look it up by its exact name. (An expired artifact
+        // cannot be downloaded any more, so it is treated as missing.)
         if (!artifactToDownload) {
             for (let commit of reversedCommits) {
-                const commitDiffArtifactName = `asset-${commit.id}-diff`;
-
                 const namedResponse = await octokit.rest.actions.listArtifactsForRepo({
                     owner,
                     repo,
-                    name: commitDiffArtifactName,
-                    per_page: 1,
+                    name: artifactName(commit.id),
+                    per_page: 100,
                 });
 
-                // An expired artifact cannot be downloaded any more, so treat
-                // it as missing (no release), the same as before this lookup.
-                const namedArtifacts = namedResponse.data.artifacts.filter(artifact => artifact.name == commitDiffArtifactName && !artifact.expired);
-
-                if (namedArtifacts.length) {
-                    artifactToDownload = namedArtifacts[0];
+                artifactToDownload = pickBuild(namedResponse.data.artifacts, commit.id);
+                if (artifactToDownload) {
                     break;
                 }
             }
         }
 
         if (!artifactToDownload) {
+            // With the `sha` input the pull request was already merged for
+            // this release, so a missing build must not pass silently.
+            if (shaInput) {
+                core.setFailed(`No build artifact of commit ${shaInput}: it was NOT released. Run the Build of that pull request again, or release by hand.`);
+                return;
+            }
             core.info('There is no build artifact belongs to commits of this push so no need to release.');
             return;
         }

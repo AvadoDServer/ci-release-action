@@ -9,8 +9,10 @@ Every package repo with an update bot runs this action in two places:
 The action looks at the open pull requests (in Build: only that one) and
 merges **at most one** per run, with a merge commit, then releases it exactly
 like the Release workflow does (`ci-release-action` with `sha:` set to the
-pull request head, whose build it releases). Boxes with automatic updates then
-pick it up. It comments "Merged and released automatically" on the pull request.
+pull request head, whose build it releases). The release goes to the
+**staging** store, like every release: boxes get it once someone publishes it
+to production (admin, Store, Publish). It comments "Merged and released to the
+staging store" on the pull request.
 
 ## What gets merged
 
@@ -24,6 +26,7 @@ All of these must hold:
 | The `upstream` version in `dappnode_package.json` goes up and not down. | A stale bot pull request never downgrades a package. |
 | It is not a major upgrade (first number changes, or the second one of a 0.x version). Such a pull request gets the `needs-review` label and a comment. | Breaking changes live in major versions. |
 | The Build's `build` job passed for the head commit (build, IPFS upload, start test). | The package is installable and starts. |
+| That Build left a release artifact (`asset-<head commit>-diff`, not expired) made by a workflow run on that very commit. | Nothing is merged that cannot be released; an artifact that only carries the name (a fork pull request can upload any name) does not count. |
 | The head commit is at least 20 hours old, unless the update is urgent (title starts with `[REQUIRED]`, or the `urgent` label). The pull request gets one comment saying when it will be merged. | An upstream release that is pulled or fixed within a day never ships, and you can add `hold` in time. |
 | GitHub says it is mergeable. | |
 
@@ -43,4 +46,6 @@ Anything else is left open, with one comment saying why where a person has to ac
   push workflow runs on them; the release runs inside this action instead.
   When a person merges by hand, the Release workflow runs as before.
 - If the release fails after the merge, the run fails (GitHub emails you).
-  Release it by re-running the failed job, or by hand.
+  Re-run the failed job, or wait for the next bot run: the action sees that
+  the default branch still ends in its own merge commit (the release would
+  have pushed a "Release ..." commit on top) and releases it then.

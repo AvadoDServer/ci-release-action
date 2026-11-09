@@ -45,4 +45,4 @@ runs:
       env:
         GH_TOKEN: ${{ inputs.token }}
       run: |
-        gh pr comment "${{ steps.pick.outputs.pr }}" -R "$GITHUB_REPOSITORY" --body "Merged and released automatically by the update pipeline ([run]($GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID)). Boxes with automatic updates get it on their next check."
+        gh pr comment "${{ steps.pick.outputs.pr }}" -R "$GITHUB_REPOSITORY" --body "Merged and released to the **staging** store automatically by the update pipeline ([run]($GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID)). Boxes get it once it is published to production (admin, Store, Publish)."
