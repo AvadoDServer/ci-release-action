@@ -5,6 +5,7 @@ const axios = require('axios').default;
 const github = require('@actions/github');
 const fs = require('fs');
 const { gitReadOptions } = require('./gitAuth');
+const { artifactName, pickBuild } = require('./buildArtifact');
 
 async function run() {
     try {
@@ -35,43 +36,42 @@ async function run() {
         const commits = shaInput ? [{ id: shaInput }] : (payload.commits || []);
         const reversedCommits = [...commits].reverse();
 
+        // An artifact counts only when the workflow run that made it ran on
+        // that commit (see buildArtifact.js): the name alone can be forged.
         for (let commit of reversedCommits) {
-            const commitDiffArtifactName = `asset-${commit.id}-diff`;
-
-            const matchedArtifacts = artifacts.filter(artifact => artifact.name == commitDiffArtifactName);
-
-            if (matchedArtifacts.length) {
-                artifactToDownload = matchedArtifacts[0];
+            artifactToDownload = pickBuild(artifacts, commit.id);
+            if (artifactToDownload) {
                 break;
             }
         }
 
         // The build action now also uploads an SBOM artifact per build, so the
         // newest 50 artifacts cover fewer builds than before. If the diff is
-        // not among them, look it up by its exact name.
+        // not among them, look it up by its exact name. (An expired artifact
+        // cannot be downloaded any more, so it is treated as missing.)
         if (!artifactToDownload) {
             for (let commit of reversedCommits) {
-                const commitDiffArtifactName = `asset-${commit.id}-diff`;
-
                 const namedResponse = await octokit.rest.actions.listArtifactsForRepo({
                     owner,
                     repo,
-                    name: commitDiffArtifactName,
-                    per_page: 1,
+                    name: artifactName(commit.id),
+                    per_page: 100,
                 });
 
-                // An expired artifact cannot be downloaded any more, so treat
-                // it as missing (no release), the same as before this lookup.
-                const namedArtifacts = namedResponse.data.artifacts.filter(artifact => artifact.name == commitDiffArtifactName && !artifact.expired);
-
-                if (namedArtifacts.length) {
-                    artifactToDownload = namedArtifacts[0];
+                artifactToDownload = pickBuild(namedResponse.data.artifacts, commit.id);
+                if (artifactToDownload) {
                     break;
                 }
             }
         }
 
         if (!artifactToDownload) {
+            // With the `sha` input the pull request was already merged for
+            // this release, so a missing build must not pass silently.
+            if (shaInput) {
+                core.setFailed(`No build artifact of commit ${shaInput}: it was NOT released. Run the Build of that pull request again, or release by hand.`);
+                return;
+            }
             core.info('There is no build artifact belongs to commits of this push so no need to release.');
             return;
         }

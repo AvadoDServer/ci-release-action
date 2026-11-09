@@ -73,6 +73,30 @@ build_passed() { # sha
   [ "$(gh api "repos/$R/actions/runs/$run/jobs" -q '[.jobs[] | select(.name == "build")][0].conclusion')" = "success" ]
 }
 
+# The release needs the Build's diff artifact, made by a workflow run on this
+# very commit (the same test as buildArtifact.js in ci-release-action: an
+# artifact that only carries the name does not count).
+has_artifact() { # sha
+  [ "$(gh api "repos/$R/actions/artifacts?name=asset-$1-diff&per_page=100" \
+    -q "[.artifacts[] | select(.expired == false and .workflow_run.head_sha == \"$1\")] | length")" != "0" ]
+}
+
+# A pull request this action merged whose release never happened (the run
+# failed in between): the release pushes a "Release ..." commit on top of the
+# merge, so a default branch that still ends in our merge commit was not
+# released. Release it now instead of looking for the next one.
+unreleased=$(gh api "repos/$R/commits/$(gh api "repos/$R" -q .default_branch)" \
+  -q 'select((.commit.message | test("^Merge #[0-9]+: ")) and (.commit.message | contains("Merged automatically by the update pipeline.")) and (.parents | length == 2)) | "\(.commit.message | capture("^Merge #(?<n>[0-9]+): ").n) \(.parents[1].sha)"')
+if [ -n "$unreleased" ]; then
+  read -r un usha <<<"$unreleased"
+  if [ "${ENABLED:-}" = "dry-run" ]; then
+    log "#$un was merged but not released: WOULD release it now (dry run)."
+    out "" ""; exit 0
+  fi
+  log "#$un was merged but not released (an earlier run failed): releasing it now."
+  out "$un" "$usha"; exit 0
+fi
+
 if [ -n "$PR" ]; then
   candidates="$PR"
 else
@@ -119,6 +143,11 @@ for n in $candidates; do
 
   if ! build_passed "$sha"; then
     log "#$n: no passed Build for $sha yet."; continue
+  fi
+  if ! has_artifact "$sha"; then
+    log "#$n: the Build of $sha left no artifact to release (expired or missing), run the Build again."
+    note "$n" "$sha" artifact "Not merged automatically: the Build passed but its release artifact is missing or expired. Run the Build again: Actions, Build, Run workflow, pull request **$n**."
+    continue
   fi
 
   urgent=false
